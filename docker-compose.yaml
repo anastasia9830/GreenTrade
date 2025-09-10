@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: market
+      POSTGRES_USER: market
+      POSTGRES_PASSWORD: market
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U market -d market"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/market
+      DB_USER: market
+      DB_PASS: market
+    stdin_open: true   
+    tty: true         
+
+volumes:
+  pgdata:
+

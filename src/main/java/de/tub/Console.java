@@ -2,35 +2,18 @@ package de.tub;
 
 import lombok.extern.java.Log;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.util.*;
+//import java.util.stream.Collectors;
 
 @Log
 public class Console {
-    // В начало класса добавь:
-    private Market market;
-    private Scanner scanner;
 
-    public Console() {
-        this.market = new Market();
-        this.scanner = new Scanner(System.in);
-    }
+    // --- fields ---
+    private final Market market;
+    private final java.util.Scanner scanner;
+    private Authorized_Users currentUser;
 
-    // Конструктор для тестов
-    public Console(Market market, Scanner scanner) {
-        this.market = market;
-        this.scanner = scanner;
-    }
-
-    // Сеттер для тестов
-    public void setCurrentUser(Authorized_Users user) {
-        this.currentUser = user;
-    }
-
-    //private final Market market = new Market();
-    //private final Scanner scanner = new Scanner(System.in);
-
+    // authorized users (sample data)
     private final List<Authorized_Users> authorized_users = List.of(
             new Authorized_Users("claudia_schmidt", "1234", "admin"),
             new Authorized_Users("maria_morozova", "5678", "admin"),
@@ -55,416 +38,407 @@ public class Console {
             new Authorized_Users("molto_bene", "2019", "seller"),
             new Authorized_Users("tvoy_den", "2025", "seller"),
             new Authorized_Users("arizona", "2021", "seller")
-
     );
 
-    private Authorized_Users currentUser;
+    // --- constructors ---
+    public Console() {
+        this(new Market(), new java.util.Scanner(System.in));
+    }
 
-    public void start() {
-        market = new Market();
-        loadProductsFromCSV("list_of_products.csv");
-        log.info("Welcome to the market!");
+    // constructor used by tests
+    public Console(Market market, java.util.Scanner scanner) {
+        this.market = Objects.requireNonNull(market);
+        this.scanner = Objects.requireNonNull(scanner);
+    }
 
-        while (true) {
-            log.severe("""
-            What do you want to do?
-            1. Display all products
-            2. Search for product
-            3. Add product (for admin only)
-            4. Manage your offers (for sellers only)
-            5. Buy product
-            6. Sell product (for sellers only)
-            7. Show price history
-            8. Exit
-            """);
+    // --- API used by tests ---
+    public void setCurrentUser(Authorized_Users user) { this.currentUser = user; }
 
-            String input = scanner.nextLine().trim();
+    // input order (lines): id \n name \n category \n price \n qty
+    // Lines OR one-line: "id name category price qty" or "id,name,category,price,qty"
+    public void addProduct() {
+        String[] t = readFlexibleTokens(5);
+        String id = t[0].trim();
+        String name = t[1].trim();
+        String category = t[2].trim();
+        double price = parseDoubleUS(t[3].trim());
+        int qty = Integer.parseInt(t[4].trim());
 
-            switch (input) {
-                case "1" -> {
-                    loadProductsFromCSV("list_of_products.csv");
-                    listItems();
+        market.addProductModel(id, name, category, 0);
+
+        ProductOffer stock = ProductOffer.builder()
+                .seller("Stock")
+                .price(price)
+                .quantity(qty)
+                .build();
+        market.addOfferToExistingProduct(name, stock);
+    }
+
+    // Lines OR one-line: "product qty price" or "product,qty,price"
+    // Accepts: "product qty price" OR "product price qty", in one line or three lines.
+    public void sellItem() {
+        String[] t = readFlexibleTokens(3);
+        String product = t[0].trim();
+        String a = t[1].trim();
+        String b = t[2].trim();
+
+        Integer qtyA = tryParseInt(a);
+        Integer qtyB = tryParseInt(b);
+        Double  priceA = tryParseDoubleUS(a);
+        Double  priceB = tryParseDoubleUS(b);
+
+        int qty;
+        double price;
+
+        if (qtyA != null && priceB != null) {        // product, qty, price
+            qty = qtyA;  price = priceB;
+        } else if (qtyB != null && priceA != null) { // product, price, qty
+            qty = qtyB;  price = priceA;
+        } else {
+            if (a.contains(".") || a.contains(",")) { // looks like price
+                price = priceA != null ? priceA : 0.0;
+                qty   = qtyB != null ? qtyB : (int)Math.round(priceB != null ? priceB : 0.0);
+            } else {
+                price = priceB != null ? priceB : 0.0;
+                qty   = qtyA != null ? qtyA : (int)Math.round(priceA != null ? priceA : 0.0);
+            }
+        }
+
+        ProductOffer offer = ProductOffer.builder()
+                .seller(currentUser != null ? currentUser.getLogin() : "unknown")
+                .price(price)
+                .quantity(qty)
+                .build();
+
+        boolean ok = market.addOfferToExistingProduct(product, offer);
+        if (!ok) {
+            market.updateOffer(product, offer.getSeller(), qty, price);
+        }
+    }
+
+    // Lines OR one-line: "product seller qty" or "product,seller,qty"
+    public void buyItem() {
+        String[] t = readFlexibleTokens(3);
+        String product = t[0].trim();
+        String seller  = t[1].trim();
+        int qty        = Integer.parseInt(t[2].trim());
+
+        boolean ok = market.buyFromOffer(product, seller, qty);
+        if (ok) {
+            System.out.println("[OK] Bought " + qty + " of " + product + " from " + seller);
+            ProductOffer o = market.getOffer(product, seller);
+            if (o != null) {
+                System.out.println("[INFO] New listed price: " + o.getPrice() + ", remaining qty: " + o.getQuantity());
+                System.out.println("[INFO] Offer price history: " + o.getPriceHistory());
+            }
+        } else {
+            ProductModel m = market.findModelByName(product);
+            if (m == null) {
+                System.out.println("[FAIL] Product not found: " + product);
+            } else {
+                ProductOffer o = market.getOffer(product, seller);
+                if (o == null) {
+                    System.out.println("[FAIL] Seller offer not found: " + seller + " for " + product);
+                    System.out.println("[HINT] Available sellers: " + m.getOffers().stream().map(ProductOffer::getSeller).toList());
+                } else if (qty <= 0) {
+                    System.out.println("[FAIL] Quantity must be positive.");
+                } else if (o.getQuantity() < qty) {
+                    System.out.println("[FAIL] Not enough stock in seller offer. Available: " + o.getQuantity());
+                } else {
+                    System.out.println("[FAIL] Purchase failed (unknown reason).");
                 }
-                case "2" -> searchItems();
-                case "3" -> {
-                    ensureLoggedIn("admin");
-                    if (currentUser != null && currentUser.getRole().equalsIgnoreCase("admin")) {
-                        addProduct();
-                    }
-                }
-                case "4" -> {
-                    ensureLoggedIn("seller");
-                    if (currentUser != null && currentUser.getRole().equalsIgnoreCase("seller")) {
-                        manageSellerOffers();
-                    }
-                }
-                case "5" -> buyItem();
-                case "6" -> {
-                    ensureLoggedIn("seller");
-                    if (currentUser != null && currentUser.getRole().equalsIgnoreCase("seller")) {
-                        sellItem();
-                    }
-                }
-                case "7" -> showHistory();
-                case "8" -> {
-                    log.info("Exiting...");
-                    return;
-                }
-                default -> log.severe("Invalid option.");
             }
         }
     }
-    private void ensureLoggedIn(String requiredRole) {
-        if (currentUser == null || !currentUser.getRole().equalsIgnoreCase(requiredRole)) {
-            currentUser = null; // 💡 сбрасываем, если роль не подходит
-            login();
+
+    // --- interactive console (CSV removed; DB seeding is done via Flyway migrations) ---
+
+    public void start() {
+        clearScreen();
+        printBanner();
+
+        while (true) {
+            printMenu();
+            int choice = readMenuChoice(1, 9);
+
+            switch (choice) {
+                case 1 -> {
+                    printlnInfo("You chose: List all products");
+                    listItems();
+                    promptEnterToContinue();
+                }
+                case 2 -> {
+                    printlnInfo("You chose: Search products");
+                    searchItems();
+                    promptEnterToContinue();
+                }
+                case 3 -> {
+                    printlnInfo("You chose: Add product (admin)");
+                    ensureLoggedIn("admin");
+                    if (isRole("admin")) {
+                        printlnHint("Enter, line by line: id, name, category, price, qty");
+                        addProduct();
+                    } else {
+                        printlnError("Access denied (admin required).");
+                    }
+                    promptEnterToContinue();
+                }
+                case 4 -> {
+                    printlnInfo("You chose: Manage your offers (seller)");
+                    ensureLoggedIn("seller");
+                    if (isRole("seller")) {
+                        manageSellerOffers();
+                    } else {
+                        printlnError("Access denied (seller required).");
+                    }
+                    promptEnterToContinue();
+                }
+                case 5 -> {
+                    printlnInfo("You chose: Buy product");
+                    printlnHint("Enter, line by line: product, seller, how much do you want to buy?");
+                    buyItem();
+                    promptEnterToContinue();
+                }
+                case 6 -> {
+                    printlnInfo("You chose: Sell product (seller)");
+                    ensureLoggedIn("seller");
+                    if (isRole("seller")) {
+                        printlnHint("Enter, line by line: product, qty, price  (or one line: product qty price)");
+                        sellItem();
+                    } else {
+                        printlnError("Access denied (seller required).");
+                    }
+                    promptEnterToContinue();
+                }
+                case 7 -> {
+                    printlnInfo("You chose: Show price history");
+                    showHistory();
+                    promptEnterToContinue();
+                }
+                case 8 -> {
+                    printlnInfo("You chose: Login");
+                    login();
+                    promptEnterToContinue();
+                }
+                case 9 -> {
+                    printlnInfo("Bye!");
+                    return;
+                }
+                default -> printlnError("Unknown option.");
+            }
+            clearScreen();
         }
+    }
+
+    private boolean isRole(String role) {
+        return currentUser != null && role.equalsIgnoreCase(currentUser.getRole());
+    }
+
+    private void ensureLoggedIn(String requiredRole) {
+        if (!isRole(requiredRole)) login();
     }
 
     private void login() {
+        System.out.print("Login: ");
+        String login = scanner.nextLine().trim();
+        System.out.print("Password: ");
+        String password = scanner.nextLine().trim();
 
-        //if (!scanner.hasNextLine()) {
-            //log.severe("No input available — exiting.");
-            //return;
-        //}
-        while (true) {
-            log.severe("Enter login:");
-            String login = scanner.nextLine().trim();
+        currentUser = authorized_users.stream()
+                .filter(u -> u.getLogin().equals(login) && u.getPassword().equals(password))
+                .findFirst()
+                .orElse(null);
 
-            log.severe("Enter password:");
-            String password = scanner.nextLine().trim();
-
-            for (Authorized_Users user : authorized_users) {
-                if (user.getLogin().equals(login) && user.getPassword().equals(password)) {
-                    currentUser = user;
-                    log.info("Logged in as: " + currentUser.getLogin());
-                    return;
-                }
-            }
-
-            log.severe("Invalid credentials.");
-        }
-    }
-
-    public void addProduct() {
-
-        if (!currentUser.getRole().equalsIgnoreCase("admin")) {
-            log.severe("Access denied. Only admins can add products.");
-            return;
-        }
-
-        log.severe("Product ID:");
-        String id = scanner.nextLine().trim();
-
-        log.severe("Product name:");
-        String name = scanner.nextLine();
-
-        log.severe("Product category:");
-        String category = scanner.nextLine();
-
-        log.severe("Initial price:");
-        double price = Double.parseDouble(scanner.nextLine());
-        if (price <= 0) {
-            log.severe("Price must be greater than 0.");
-            return;
-        }
-
-        log.severe("Initial quantity:");
-        int quantity = Integer.parseInt(scanner.nextLine());
-        if (quantity <= 0) {
-            log.severe("Quantity must be greater than 0.");
-            return;
-        }
-
-        //ProductOffer offer = ProductOffer.builder()
-                //.seller(currentUser.getLogin())
-                //.price(price)
-                //.quantity(quantity)
-                //.priceHistory(new ArrayList<>(List.of(price)))
-                //.build();
-
-        market.addProductModel(id, name, category, quantity);
-        log.info("New product added.");
-    }
-
-    public void sellItem() {
-        if (!currentUser.getRole().equalsIgnoreCase("seller")) {
-            log.severe("Access denied. Only sellers can sell products.");
-            return;
-        }
-
-        log.severe("Enter product name:");
-        String name = scanner.nextLine();
-
-        ProductOffer existingOffer = market.getOffer(name, currentUser.getLogin());
-
-        if (existingOffer != null) {
-            log.warning("You already have an offer for this product.");
-            log.severe("""
-            What would you like to do?
-            1. Update existing offer
-            2. Cancel
-            """);
-
-            String choice = scanner.nextLine().trim();
-            if (choice.equals("1")) {
-                log.severe("Enter new quantity:");
-                int quantity = Integer.parseInt(scanner.nextLine());
-
-                log.severe("Enter new price:");
-                double price = Double.parseDouble(scanner.nextLine());
-
-                boolean success = market.updateOffer(name, currentUser.getLogin(), quantity, price);
-                if (success) {
-                    log.info("Offer updated.");
-                } else {
-                    log.severe("Failed to update your offer.");
-                }
-            } else {
-                log.info("Operation cancelled.");
-            }
-
+        if (currentUser == null) {
+            System.out.println("Invalid credentials.");
         } else {
-            log.severe("Enter quantity to offer:");
-            int quantity = Integer.parseInt(scanner.nextLine());
-            if (quantity <= 0) {
-                log.severe("Quantity must be greater than 0.");
-                return;
-            }
-
-            log.severe("Enter price:");
-            double price = Double.parseDouble(scanner.nextLine());
-            if (price <= 0) {
-                log.severe("Price must be greater than 0.");
-                return;
-            }
-
-            ProductOffer offer = ProductOffer.builder()
-                    .seller(currentUser.getLogin())
-                    .quantity(quantity)
-                    .price(price)
-                    .priceHistory(new ArrayList<>(List.of(price)))
-                    .build();
-
-            boolean success = market.addOfferToExistingProduct(name, offer);
-            if (success) {
-                log.info("New offer created.");
-            } else {
-                log.severe("Product not found or error while adding offer.");
-            }
+            System.out.println("Logged in as " + currentUser.getLogin() + " (" + currentUser.getRole() + ")");
         }
     }
 
     private void listItems() {
         List<ProductModel> models = market.listAllModels();
         if (models.isEmpty()) {
-            log.info("No products available.");
+            System.out.println("(no items)");
             return;
         }
-        for (ProductModel model : models) {
-            log.info(model.toString());
-            for (ProductOffer offer : model.getOffers()) {
-                log.info("  -> " + offer);
+        for (ProductModel m : models) {
+            System.out.println(m);
+            if (m.getOffers() != null) {
+                for (ProductOffer o : m.getOffers()) System.out.println("  -> " + o);
             }
         }
     }
 
     private void searchItems() {
-        log.severe("Enter search term:");
-        String query = scanner.nextLine().trim();
+        System.out.print("Search by name or category: ");
+        String q = scanner.nextLine().trim();
 
-        List<ProductModel> results = market.searchModels(query);
-        if (results.isEmpty()) {
-            log.info("No matching products found.");
+        List<ProductModel> results = market.searchModels(q);
+        if (results == null || results.isEmpty()) {
+            System.out.println("No results.");
             return;
         }
-
+        System.out.println("Found:");
         for (ProductModel model : results) {
-            log.info("Product: " + model.getName() + " | Category: " + model.getCategory());
-            for (ProductOffer offer : model.getOffers()) {
-                log.info("  -> Seller: " + offer.getSeller() + ", Price: " + offer.getPrice() + ", Quantity: " + offer.getQuantity());
+            System.out.println("  Product: " + model.getName() + " | Category: " + model.getCategory());
+            if (model.getOffers() != null) {
+                for (ProductOffer o : model.getOffers()) {
+                    System.out.println("    -> Seller: " + o.getSeller()
+                            + ", Price: " + o.getPrice()
+                            + ", Quantity: " + o.getQuantity());
+                }
             }
-        }
-    }
-
-    public void buyItem() {
-        log.severe("Enter product name:");
-        String name = scanner.nextLine().trim();
-
-        List<ProductOffer> offers = market.getOffersByNameOrCategory(name);
-        if (offers.isEmpty()) {
-            log.severe("No offers found for this product.");
-            return;
-        }
-
-        log.info("Available sellers for product: " + name);
-        for (ProductOffer offer : offers) {
-            log.info("  - " + offer.getSeller() + ": " +
-                    String.format("%.2f€", offer.getPrice()) +
-                    ", " + offer.getQuantity() + " units");
-        }
-
-        log.severe("Enter seller name:");
-        String seller = scanner.nextLine();
-
-        log.severe("Enter quantity to buy:");
-        int amount = Integer.parseInt(scanner.nextLine());
-        if (amount <= 0) {
-            log.severe("Quantity must be greater than 0.");
-            return;
-        }
-
-        boolean success = market.buyFromOffer(name, seller, amount);
-        if (success) {
-            log.info("Purchase successful.");
-        } else {
-            log.severe("Purchase failed.");
         }
     }
 
     private void showHistory() {
-        log.severe("Enter product name:");
-        String name = scanner.nextLine();
-        ProductModel model = market.findModelByName(name);
+    System.out.print("Product name: ");
+    String name = scanner.nextLine().trim();
 
-        if (model == null) {
-            log.warning("Product not found.");
-            return;
-        }
-
-        if (model.getOffers() == null || model.getOffers().isEmpty()) {
-            log.info("This product has no offers yet.");
-            return;
-        }
-
-        List<Double> history = model.getPriceHistory();
-        if (history == null || history.isEmpty()) {
-            log.info("No sales yet. Price history is empty.");
-        } else {
-            log.info("Recent market prices for \"" + name + "\": " + history);
-        }
+    // читаем последние 3 цены сделки из Market (а он — из БД, если подключен)
+    List<Double> last3 = market.getLastTradePrices(name, 3);
+    if (last3 == null || last3.isEmpty()) {
+        System.out.println("No trade history yet.");
+        return;
     }
+    String s = last3.stream()
+            .map(d -> String.format(java.util.Locale.US, "%.2f", d))
+            .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    System.out.println("Last 3 trade prices for \"" + name + "\": " + s);
+}
+
 
     private void manageSellerOffers() {
-        if (!currentUser.getRole().equalsIgnoreCase("seller")) {
-            log.severe("Access denied. Only sellers can manage their offers.");
+        if (!isRole("seller")) {
+            System.out.println("Access denied (seller only).");
             return;
         }
+        System.out.print("Product: ");
+        String product = scanner.nextLine().trim();
+        System.out.print("New price: ");
+        double price = Double.parseDouble(scanner.nextLine().trim().replace(',', '.'));
+        System.out.print("Add quantity: ");
+        int qty = Integer.parseInt(scanner.nextLine().trim());
 
-        List<ProductModel> allProducts = market.listAllModels();
-        List<ProductModel> ownedProducts = new ArrayList<>();
-
-        for (ProductModel model : allProducts) {
-            boolean hasOwnOffer = model.getOffers().stream()
-                    .anyMatch(offer -> offer.getSeller().equalsIgnoreCase(currentUser.getLogin()));
-            if (hasOwnOffer) {
-                ownedProducts.add(model);
-            }
-        }
-
-        if (ownedProducts.isEmpty()) {
-            log.info("You have no active offers.");
-            return;
-        }
-
-        log.info("Your current offers:");
-        for (ProductModel model : ownedProducts) {
-            ProductOffer offer = market.getOffer(model.getName(), currentUser.getLogin());
-            log.info("Product: " + model.getName() + " | Your offer -> " + offer);
-        }
-
-        log.severe("Enter product name to manage:");
-        String productName = scanner.nextLine().trim();
-
-        ProductOffer offer = market.getOffer(productName, currentUser.getLogin());
-        if (offer == null) {
-            log.severe("No offer found for this product.");
-            return;
-        }
-
-        log.severe("""
-            What would you like to change?
-            1. Update quantity
-            2. Update price
-            3. Cancel
-            """);
-        String choice = scanner.nextLine().trim();
-
-        switch (choice) {
-            case "1" -> {
-                log.severe("Enter additional quantity to add:");
-                int qty = Integer.parseInt(scanner.nextLine());
-                if (qty <= 0) {
-                    log.severe("Quantity must be positive.");
-                    return;
-                }
-                boolean success = market.updateOffer(productName, currentUser.getLogin(), qty, offer.getPrice());
-                if (success) {
-                    log.info("Quantity updated.");
-                } else {
-                    log.severe("Failed to update quantity.");
-                }
-            }
-            case "2" -> {
-                log.severe("Enter new price:");
-                double newPrice = Double.parseDouble(scanner.nextLine());
-                if (newPrice <= 0) {
-                    log.severe("Price must be positive.");
-                    return;
-                }
-                boolean success = market.updateOffer(productName, currentUser.getLogin(), 0, newPrice);
-                if (success) {
-                    log.info("Price updated.");
-                } else {
-                    log.severe("Failed to update price.");
-                }
-            }
-            case "3" -> log.info("Cancelled.");
-            default -> log.severe("Invalid input.");
+        boolean ok = market.updateOffer(product, currentUser.getLogin(), qty, price);
+        if (!ok) {
+            ProductOffer offer = ProductOffer.builder()
+                    .seller(currentUser.getLogin())
+                    .price(price)
+                    .quantity(qty)
+                    .build();
+            market.addOfferToExistingProduct(product, offer);
         }
     }
 
-    public void loadProductsFromCSV(String resourcePath) {
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(
-                Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream(resourcePath))))) {
+    // ---------- UI helpers & parsing ----------
 
-            br.readLine(); // пропустить заголовок
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] p = line.split(",");
-                if (p.length < 6) continue;
+    private void printBanner() {
+        System.out.println("""
+            ==========================================
+                     Welcome to the Market
+            ==========================================
+            """);
+    }
 
-                String id = p[0].trim();
-                String name = p[1].trim();
-                String category = p[2].trim();
-                String seller = p[3].trim();
-                double price = Double.parseDouble(p[4].trim());
-                int quantity = Integer.parseInt(p[5].trim());
-
-                if (price <= 0 || quantity <= 0) continue;
-
-                ProductOffer offer = ProductOffer.builder()
-                        .seller(seller)
-                        .price(price)
-                        .quantity(quantity)
-                        .priceHistory(new ArrayList<>(List.of(price)))
-                        .build();
-
-                ProductModel model = market.listAllModels().stream()
-                        .filter(m -> m.getName().equalsIgnoreCase(name))
-                        .findFirst()
-                        .orElse(null);
-
-                if (model == null)
-                    market.addProductModel(id, name, category, quantity); // передаем id
-                else
-                    market.addOfferToExistingProduct(name, offer);
-            }
-
-            log.info("Products loaded from resource: " + resourcePath);
-
-        } catch (Exception e) {
-            log.severe("Failed to load CSV from resources: " + e.getMessage());
+    private void printMenu() {
+        System.out.println("""
+            What do you want to do?
+              1) List all products
+              2) Search products
+              3) Add product (admin)
+              4) Manage your offers (seller)
+              5) Buy product
+              6) Sell product (seller)
+              7) Show price history
+              8) Login
+              9) Exit
+            """);
+        if (currentUser != null) {
+            System.out.println("Current user: " + currentUser.getLogin()
+                    + " [" + currentUser.getRole() + "]");
+        } else {
+            System.out.println("You are not logged in. Some actions will require login.");
         }
+        System.out.print("\nYour choice (1-9): ");
+    }
+
+    /** Safe menu input (bounded) */
+    private int readMenuChoice(int min, int max) {
+        while (true) {
+            String raw = scanner.nextLine().trim();
+            try {
+                int n = Integer.parseInt(raw);
+                if (n >= min && n <= max) return n;
+            } catch (NumberFormatException ignored) {}
+            System.out.print("Enter a number from " + min + " to " + max + ": ");
+        }
+    }
+
+    /** “Press Enter to continue…” pause */
+    private void promptEnterToContinue() {
+        System.out.print("\nPress Enter to continue…");
+        scanner.nextLine();
+    }
+
+    /** Clear terminal via ANSI (works in most terminals) */
+    private void clearScreen() {
+        try {
+            System.out.print("\033[H\033[2J");
+            System.out.flush();
+        } catch (Exception ignored) {}
+    }
+
+    /** Message helpers */
+    private void printlnInfo(String msg)  { System.out.println("[INFO] " + msg); }
+    private void printlnError(String msg) { System.out.println("[ERROR] " + msg); }
+    private void printlnHint(String msg)  { System.out.println("[HINT] " + msg); }
+
+    // Locale-agnostic parsing helpers
+    private static double parseDoubleUS(String s) {
+        return Double.parseDouble(s.replace(',', '.'));
+    }
+
+    // Remove ANSI escape sequences (arrow keys, etc.) and BOM if present.
+    private static String sanitizeLine(String s) {
+        if (s == null) return "";
+        s = s.replaceAll("\\x1B\\[[;?0-9]*[A-Za-z]", ""); // strip ANSI
+        s = s.replace("\u001B", ""); // ESC
+        s = s.replace("\uFEFF", ""); // BOM
+        return s;
+    }
+
+    private static List<String> splitTokens(String line) {
+        line = sanitizeLine(line);
+        String[] parts = line.trim().split("[,;\\s]+");
+        List<String> out = new ArrayList<>();
+        for (String p : parts) if (!p.isEmpty()) out.add(p);
+        return out;
+    }
+
+    private static Integer tryParseInt(String s) {
+        try { return Integer.valueOf(s.trim()); } catch (Exception e) { return null; }
+    }
+
+    private static Double tryParseDoubleUS(String s) {
+        try { return Double.valueOf(s.trim().replace(',', '.')); } catch (Exception e) { return null; }
+    }
+
+    /** Reads tokens from either one line ("a,b,c") or multiple lines until we have `expected`. */
+    private String[] readFlexibleTokens(int expected) {
+        List<String> acc = new ArrayList<>();
+        while (acc.size() < expected) {
+            String line = scanner.nextLine();
+            List<String> toks = splitTokens(line);
+            // If user typed everything on one line, prefer that line alone.
+            if ((line.contains(",") || line.contains(";")) && toks.size() >= expected) {
+                acc.clear();
+                acc.addAll(toks);
+                break;
+            }
+            acc.addAll(toks);
+        }
+        return acc.subList(0, expected).toArray(new String[0]);
     }
 }

@@ -1,2 +1,2 @@
-rootProject.name = "Assignment1Gradle"
+rootProject.name = "GreenTrade"
 

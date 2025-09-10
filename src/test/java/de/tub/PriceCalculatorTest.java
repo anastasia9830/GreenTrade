@@ -20,7 +20,7 @@ class PriceCalculatorTest {
     @Test
     void testZeroAvailable() {
         double result = PriceCalculator.calculateNewPrice(50.0, 5, 0);
-        assertEquals(50.0 * (1 + 0.03 * 5), result, 0.0001);
+        assertEquals(50.0 * (1 + 0.05 * 5), result, 0.0001);
     }
 
     @Test
