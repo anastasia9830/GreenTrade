@@ -28,11 +28,9 @@ public class ProductOffer {
     @Builder.Default
     private int quantity = 0;
 
-    /** Always non-null to avoid NPEs. */
     @Builder.Default
     private List<Double> priceHistory = new ArrayList<>();
 
-    /** Append a listed price and keep only the last 3 entries. */
     public void addListedPriceToHistory(double listedPrice) {
         priceHistory.add(listedPrice);
         if (priceHistory.size() > 3) {

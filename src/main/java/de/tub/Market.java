@@ -9,34 +9,23 @@ import java.util.Objects;
 @Log
 public class Market {
 
-    // In-memory хранилище (используется только когда repo == null)
     private final List<ProductModel> models = new ArrayList<>();
 
-    // Репозиторий для работы с БД (null => режим in-memory)
     private final JdbcMarketRepository repo;
 
-    /** In-memory mode. */
     public Market() { this.repo = null; }
 
-    /** DB mode. */
     public Market(JdbcMarketRepository repo) { this.repo = Objects.requireNonNull(repo); }
 
     private boolean isDbMode() { return repo != null; }
 
-    // ---------------------- Аутентификация ----------------------
 
-    /**
-     * Логин пользователя. В DB-режиме делегирует в репозиторий (bcrypt/pgcrypto-проверка в БД).
-     * В in-memory режиме возвращает null (аутентификация не поддерживается без БД).
-     */
     public AuthorizedUsers login(String login, String password) {
         if (!isDbMode()) return null;
         return repo.authenticate(login, password);
     }
 
-    // ---------------------- Продукты и офферы ----------------------
 
-    /** Admin: добавить/обновить модель; если initialQuantity>0 — создать оффер "Stock". */
     public void addProductModel(String id, String name, String category, int initialQuantity) {
         if (isDbMode()) {
             repo.upsertProduct(id, name, category);
@@ -59,7 +48,6 @@ public class Market {
         models.add(m);
     }
 
-    /** Все модели (с офферами). */
     public List<ProductModel> listAllModels() {
         if (isDbMode()) return repo.fetchAllModelsWithOffers();
         return models;
@@ -82,7 +70,6 @@ public class Market {
                 .toList();
     }
 
-    /** Найти модель по имени. */
     public ProductModel findModelByName(String name) {
         if (isDbMode()) return repo.findModelByNameWithOffers(name);
         return models.stream()
@@ -90,7 +77,6 @@ public class Market {
                 .findFirst().orElse(null);
     }
 
-    /** Получить оффер по имени продукта и продавцу. */
     public ProductOffer getOffer(String productName, String seller) {
         if (isDbMode()) return repo.getOffer(productName, seller);
         ProductModel model = findModelByName(productName);
@@ -100,7 +86,6 @@ public class Market {
                 .findFirst().orElse(null);
     }
 
-    /** Купить у продавца и записать цену сделки (product-level history в БД; в памяти — в модели). */
     public boolean buyFromOffer(String productName, String seller, int qty) {
         if (qty <= 0) return false;
 
@@ -116,7 +101,6 @@ public class Market {
             return repo.buyFromOffer(productName, seller, qty, executionPrice, newListedPrice);
         }
 
-        // ---- in-memory fallback ----
         ProductModel model = findModelByName(productName);
         if (model == null) return false;
 
@@ -132,14 +116,12 @@ public class Market {
         double newPrice = PriceCalculator.calculateNewPrice(executionPrice, qty, availableAfter);
         offer.setPrice(newPrice);
 
-        // PRODUCT-level last 3 execution prices
         List<Double> ph = model.getPriceHistory();
         if (ph == null) ph = new ArrayList<>();
         ph.add(executionPrice);
         if (ph.size() > 3) ph.subList(0, ph.size() - 3).clear();
         model.setPriceHistory(ph);
 
-        // OFFER-level last 3 listed prices
         List<Double> oh = offer.getPriceHistory();
         if (oh == null) oh = new ArrayList<>();
         if (oh.size() >= 3) oh.remove(0);
@@ -149,7 +131,6 @@ public class Market {
         return true;
     }
 
-    /** Создать/обновить оффер продавца. */
     public boolean updateOffer(String productName, String seller, int addedQuantity, double newPrice) {
         if (isDbMode()) {
             String id = repo.findProductIdByName(productName);
@@ -184,7 +165,6 @@ public class Market {
         }
     }
 
-    /** Добавить новый оффер к существующему продукту. */
     public boolean addOfferToExistingProduct(String productName, ProductOffer offer) {
         if (isDbMode()) {
             String id = repo.findProductIdByName(productName);
@@ -197,7 +177,6 @@ public class Market {
         return model.addOffer(offer);
     }
 
-    /** История цен оффера (только in-memory). */
     public List<Double> getOfferPriceHistory(String productName, String seller) {
         ProductOffer offer = getOffer(productName, seller);
         return (offer != null) ? offer.getPriceHistory() : null;
@@ -211,7 +190,6 @@ public class Market {
         offer.setPriceHistory(history);
     }
 
-    /** Последние N цен сделок (в БД — product-level history, в памяти — у модели продукта). */
     public List<Double> getLastTradePrices(String productName, int limit) {
 
         if (limit <= 0) return java.util.Collections.emptyList();
@@ -223,8 +201,8 @@ public class Market {
         if (ph == null || ph.isEmpty()) return java.util.Collections.emptyList();
 
         int from = Math.max(0, ph.size() - limit);
-        List<Double> tail = new ArrayList<>(ph.subList(from, ph.size())); // oldest..newest
-        java.util.Collections.reverse(tail); // newest first
+        List<Double> tail = new ArrayList<>(ph.subList(from, ph.size())); 
+        java.util.Collections.reverse(tail); 
         return tail;
     }
 }

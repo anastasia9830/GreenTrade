@@ -12,7 +12,6 @@ public class Console {
     private final java.util.Scanner scanner;
     private AuthorizedUsers currentUser;
 
-    // --- constructors ---
     public Console() {
         this(new Market(), new java.util.Scanner(System.in));
     }
@@ -59,8 +58,6 @@ public class Console {
         }
     }
 
-    // ---------- actions ----------
-    /** Admin adds/updates a product; optionally creates initial "Stock" offer. */
     public void addProduct() {
         String id       = readNonEmpty("ID: ");
         String name     = readNonEmpty("Name: ");
@@ -104,7 +101,6 @@ public class Console {
         System.out.println(ok ? "[OK] Offer upserted." : "[FAIL] Offer update failed.");
     }
 
-    /** Buy from a seller (fixed order: Product, Seller, Quantity). */
     public void buyItem() {
         String product = readNonEmpty("Product: ");
         String seller  = readNonEmpty("Seller: ");
@@ -140,7 +136,6 @@ public class Console {
         }
     }
 
-    /** Show last 3 trade execution prices (product-level). */
     private void showHistory() {
         String name = readNonEmpty("Product name: ");
         List<Double> last3 = market.getLastTradePrices(name, 3);
@@ -154,7 +149,6 @@ public class Console {
         System.out.println("Last 3 trade prices for \"" + name + "\": " + s);
     }
 
-    // ---------- main loop ----------
     public void start() {
         clearScreen();
         printBanner();
@@ -233,7 +227,6 @@ public class Console {
         }
     }
 
-    // ---------- auth helpers ----------
     private boolean isRole(String role) {
         return currentUser != null && role.equalsIgnoreCase(currentUser.getRole());
     }
@@ -242,12 +235,12 @@ public class Console {
         if (!isRole(requiredRole)) login();
     }
 
-    /** DB-backed login via Market (bcrypt/pgcrypto). */
+
     private void login() {
         String login = readNonEmpty("Login: ");
         String password = readNonEmpty("Password: ");
 
-        AuthorizedUsers u = market.login(login, password); // repo.authenticate(...)
+        AuthorizedUsers u = market.login(login, password); // repo.authenticate()
         if (u == null) {
             System.out.println("Invalid credentials.");
             currentUser = null;
@@ -257,7 +250,6 @@ public class Console {
         }
     }
 
-    // ---------- list/search ----------
     private void listItems() {
         List<ProductModel> models = market.listAllModels();
         if (models.isEmpty()) {
@@ -292,7 +284,6 @@ public class Console {
         }
     }
 
-    // ---------- UI helpers ----------
     private void printBanner() {
         System.out.println("""
             ==========================================

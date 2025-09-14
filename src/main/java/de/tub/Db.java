@@ -28,7 +28,7 @@ public final class Db {
         Flyway.configure()
         .dataSource(ds)
         .locations("classpath:db/migration")
-        .validateMigrationNaming(true) // чтобы сразу увидеть, какой файл назван неверно
+        .validateMigrationNaming(true) 
         .load()
         .migrate();
     }

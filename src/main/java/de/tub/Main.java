@@ -12,7 +12,7 @@ public class Main {
         String dbUrl = System.getenv("DB_URL"); // e.g. jdbc:postgresql://localhost:5432/market
         if (dbUrl != null && !dbUrl.isBlank()) {
             try {
-                // Init DataSource, run Flyway migrations, and use the JDBC repository
+   
                 DataSource ds = Db.dataSourceFromEnv();
                 Db.migrate(ds);
 
@@ -29,7 +29,6 @@ public class Main {
             market = new Market();
         }
 
-        // Start console UI
         Console console = new Console(market, new java.util.Scanner(System.in));
         console.start();
     }

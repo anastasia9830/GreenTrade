@@ -5,7 +5,7 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 
-public class AuthorizedUsers { // can be record class
+public class AuthorizedUsers { 
         private final String login;
         private final String password;
         private final String role; // admin or seller
@@ -15,6 +15,6 @@ public class AuthorizedUsers { // can be record class
         this.password = null;
         this.role = role;
     }
-    
+
     }
 

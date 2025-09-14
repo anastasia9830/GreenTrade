@@ -232,7 +232,6 @@ public class JdbcMarketRepository implements AutoCloseable {
         }
     }
 
-    /** Атомарная покупка + запись цены сделки. */
     public boolean buyFromOffer(String productName, String seller, int qty,
                                 double executionPrice, double newListedPrice) {
         final String find    = "SELECT id FROM products WHERE lower(name)=lower(?)";
