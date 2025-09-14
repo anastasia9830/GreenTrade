@@ -3,7 +3,6 @@ package de.tub;
 import org.junit.jupiter.api.Test;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
-import java.util.Scanner;
 
 public class ConsoleTest {
 
@@ -14,11 +13,11 @@ public class ConsoleTest {
             1234
             TestProduct
             Food
-            10.0
+            4.0
             100
         """);
         Console console = new Console(market, scanner);
-        console.setCurrentUser(new Authorized_Users("admin", "1234", "admin"));
+        //console.setCurrentUser(new AuthorizedUsers("admin", "1234", "admin"));
 
         console.addProduct();
 
@@ -38,7 +37,7 @@ public class ConsoleTest {
             2.5
         """);
         Console console = new Console(market, scanner);
-        console.setCurrentUser(new Authorized_Users("seller1", "pass", "seller"));
+        console.setCurrentUser(new AuthorizedUsers("seller1", null, "seller"));
 
         console.sellItem();
 
@@ -66,7 +65,7 @@ public class ConsoleTest {
             3
         """);
         Console console = new Console(market, scanner);
-        console.setCurrentUser(new Authorized_Users("buyer1", "pass", "buyer"));
+        //console.setCurrentUser(new AuthorizedUsers("buyer1", "pass", "buyer"));
 
         console.buyItem();
 

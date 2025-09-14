@@ -1,4 +1,4 @@
--- Seed products (id, name, category)
+-- products (id, name, category)
 INSERT INTO products (id, name, category) VALUES
 ('1','Tomatoes','Vegetables'),
 ('2','Potatoes','Vegetables'),
@@ -40,7 +40,7 @@ INSERT INTO products (id, name, category) VALUES
 ('38','Shrimp','Seafood')
 ON CONFLICT (id) DO NOTHING;
 
--- Seed offers (product_id, seller, price, quantity)
+-- offers (product_id, seller, price, quantity)
 INSERT INTO offers (product_id, seller, price, quantity) VALUES
 ('1','mark_edelstein',2.50,100),
 ('2','mark_edelstein',1.30,120),

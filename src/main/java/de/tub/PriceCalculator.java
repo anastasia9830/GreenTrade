@@ -1,10 +1,7 @@
 package de.tub;
 
 /**
- * Berechnet den neuen Preis anhand der Nachfrage (bought) und des aktuellen Angebots (available).
- * цена изменяется исходя из спроса и предложения
- * Used internally by the Market class.
-
+написать объяснение почему такая цена
  */
 
 public class PriceCalculator {
