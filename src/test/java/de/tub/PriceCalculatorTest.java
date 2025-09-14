@@ -30,7 +30,6 @@ class PriceCalculatorTest {
             for (int available = 1; available <= 20; available++) {
                 double newPrice = PriceCalculator.calculateNewPrice(oldPrice, bought, available);
                 assertTrue(newPrice >= oldPrice, "Price should not decrease");
-                // не проверяем верхнюю границу: формула её не гарантирует
             }
         }
     }

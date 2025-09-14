@@ -46,7 +46,7 @@ class MarketTest {
 
         market.addProductModel("123", "Banana", "Fruit", 100);
         market.addOfferToExistingProduct("Banana", offer);
-        market.addProductModel("123", "Banana", "Fruit", 100);  // should be ignored
+        market.addProductModel("123", "Banana", "Fruit", 100);  
 
         assertEquals(1, market.listAllModels().size());
     }
@@ -133,7 +133,7 @@ class MarketTest {
 
         List<Double> history = market.getOfferPriceHistory("Banana", "alice");
         assertEquals(3, history.size());
-        assertEquals(11.0, history.get(0)); // первая (старая) цена была удалена
+        assertEquals(11.0, history.get(0)); 
     }
 }
 
