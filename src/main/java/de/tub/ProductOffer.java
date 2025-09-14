@@ -8,12 +8,6 @@ import lombok.NoArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Represents an individual offer from a seller for a specific product model.
- * - price           : current listed price
- * - quantity        : available units in this offer
- * - priceHistory    : last 3 listed prices for this offer (not trade prices)
- */
 @Data
 @Builder
 @AllArgsConstructor
