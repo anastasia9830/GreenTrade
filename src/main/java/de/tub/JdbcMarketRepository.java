@@ -11,18 +11,10 @@ public class JdbcMarketRepository implements AutoCloseable {
         this.dataSource = Objects.requireNonNull(dataSource);
     }
 
-    /* ---------- helpers ---------- */
-
-    /** Если id числовой — вернёт Integer; иначе — исходную строку. */
     private Object normalizeId(String id) {
         try { return Integer.valueOf(id); } catch (Exception ignore) { return id; }
     }
 
-    
-
-    /* ---------- reads ---------- */
-
-    /** Все модели с офферами. */
     public List<ProductModel> fetchAllModelsWithOffers() {
         final String sqlProducts = "SELECT id, name, category FROM products ORDER BY id";
         final String sqlOffers   = "SELECT product_id, seller, price, quantity FROM offers";
@@ -67,7 +59,6 @@ public class JdbcMarketRepository implements AutoCloseable {
         return new ArrayList<>(byId.values());
     }
 
-    /** Одна модель по имени (безопасно к регистру) + её офферы. */
     public ProductModel findModelByNameWithOffers(String name) {
         final String sqlP = "SELECT id, name, category FROM products WHERE lower(name)=lower(?)";
         final String sqlO = "SELECT seller, price, quantity FROM offers WHERE product_id=?";
@@ -78,7 +69,6 @@ public class JdbcMarketRepository implements AutoCloseable {
             String pname;
             String pcat;
 
-            // product
             try (PreparedStatement ps = c.prepareStatement(sqlP)) {
                 ps.setString(1, name);
                 try (ResultSet rs = ps.executeQuery()) {
@@ -94,7 +84,6 @@ public class JdbcMarketRepository implements AutoCloseable {
                     .id(idStr).name(pname).category(pcat)
                     .build();
 
-            // offers
             try (PreparedStatement ps = c.prepareStatement(sqlO)) {
                 ps.setObject(1, pidObj);
                 try (ResultSet rs = ps.executeQuery()) {
@@ -127,7 +116,6 @@ public class JdbcMarketRepository implements AutoCloseable {
         }
     }
 
-    /** Конкретный оффер по имени продукта и продавцу. */
     public ProductOffer getOffer(String productName, String seller) {
         final String sql = """
             SELECT o.seller, o.price, o.quantity
@@ -152,7 +140,6 @@ public class JdbcMarketRepository implements AutoCloseable {
         }
     }
 
-    /** (сумма quantity по всем офферам). */
     public int getTotalAvailableForProduct(String productName) {
         final String sql = """
             SELECT COALESCE(SUM(o.quantity),0)
@@ -172,7 +159,6 @@ public class JdbcMarketRepository implements AutoCloseable {
         }
     }
 
-    /** Последние N цен сделки (по продукту), новейшие первыми.Тут есть исправления Order by */
     public List<Double> getLastTradePrices(String productName, int limit) {
         final String sql = """
         SELECT h.price
