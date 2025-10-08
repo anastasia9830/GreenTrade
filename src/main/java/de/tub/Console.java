@@ -11,7 +11,11 @@ public class Console {
     private final Market market;
     private final java.util.Scanner scanner;
     private AuthorizedUsers currentUser;
-
+/**
+     * Конструктор по умолчанию.
+     * Запускает приложение в in-memory режиме (new Market()) и читает ввод из System.in.
+     * В реальном запуске через Main, как правило, используется другой конструктор.
+     */
     public Console() {
         this(new Market(), new java.util.Scanner(System.in));
     }
@@ -24,7 +28,7 @@ public class Console {
     // for tests
     public void setCurrentUser(AuthorizedUsers user) { this.currentUser = user; }
 
-    // ---------- strict input helpers (fixed order) ----------
+    // strict input helpers (fixed order)
     private String readNonEmpty(String prompt) {
         while (true) {
             System.out.print(prompt);
@@ -64,7 +68,7 @@ public class Console {
         String category = readNonEmpty("Category: ");
         double price    = readDouble("Initial price: ");
         int qty         = readInt("Initial quantity: ");
-
+// Создаём/обновляем модель продукта (без стартового количества)
         market.addProductModel(id, name, category, 0);
 
         ProductOffer stock = ProductOffer.builder()

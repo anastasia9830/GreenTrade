@@ -35,6 +35,6 @@ public final class Db {
 
     private static String getenvOr(String k, String def) {
         String v = System.getenv(k);
-        return (v == null || v.isBlank()) ? def : v;
+        return (v == null || v.isBlank()) ? def : v; //Docker sets "" for empty vars
     }
 }

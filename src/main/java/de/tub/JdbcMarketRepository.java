@@ -4,13 +4,27 @@ import javax.sql.DataSource;
 import java.sql.*;
 import java.util.*;
 
+/**
+ * Репозиторий для работы с рыночными данными в базе данных через JDBC.
+ * Реализует AutoCloseable для совместимости с try-with-resources.
+ */
+
 public class JdbcMarketRepository implements AutoCloseable {
     private final DataSource dataSource;
+/**
+     * Конструктор репозитория
+     * @param dataSource источник данных для подключения к БД (не может быть null)
+     */
 
     public JdbcMarketRepository(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource);
     }
-
+ /**
+     * Нормализует ID продукта - пытается преобразовать строку в число,
+     * если это возможно, для совместимости с разными типами ID в БД
+     * @param id строковый идентификатор
+     * @return Integer если id можно преобразовать в число, иначе оригинальную строку
+     */
     private Object normalizeId(String id) {
         try { return Integer.valueOf(id); } catch (Exception ignore) { return id; }
     }
@@ -97,7 +111,7 @@ public class JdbcMarketRepository implements AutoCloseable {
                 }
             }
             return m;
-        } catch (SQLException e) {
+        } catch (SQLException e) { //sql exception, if connector fails
             throw new RuntimeException("findModelByNameWithOffers failed", e);
         }
     }
@@ -109,7 +123,7 @@ public class JdbcMarketRepository implements AutoCloseable {
             ps.setString(1, productName);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) return null;
-                return String.valueOf(rs.getObject(1));
+                return String.valueOf(rs.getObject(1)); //we put the first quary in the object
             }
         } catch (SQLException e) {
             throw new RuntimeException("findProductIdByName failed", e);
@@ -121,8 +135,8 @@ public class JdbcMarketRepository implements AutoCloseable {
             SELECT o.seller, o.price, o.quantity
             FROM offers o
             JOIN products p ON p.id = o.product_id
-            WHERE lower(p.name)=lower(?) AND lower(o.seller)=lower(?)
-            """;
+            WHERE lower(p.name)=lower(?) AND lower(o.seller)=lower(?) 
+            """; //база кэширует скомпилированный SQL с ?
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, productName);
@@ -170,11 +184,11 @@ public class JdbcMarketRepository implements AutoCloseable {
         """;
         List<Double> out = new ArrayList<>();
         try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+            PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, productName);
             ps.setInt(2, Math.max(0, limit));
             try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) out.add(rs.getDouble(1));
+                while (rs.next()) out.add(rs.getDouble(1)); //price is the first column in the select
             }
         } catch (SQLException e) {
             throw new RuntimeException("getLastTradePrices failed", e);
@@ -186,10 +200,10 @@ public class JdbcMarketRepository implements AutoCloseable {
         final String sql = """
             INSERT INTO products(id,name,category) VALUES (?,?,?)
             ON CONFLICT (id) DO UPDATE
-              SET name=EXCLUDED.name, category=EXCLUDED.category
+            SET name=EXCLUDED.name, category=EXCLUDED.category
             """;
         try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+            PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setObject(1, normalizeId(id));
             ps.setString(2, name);
             ps.setString(3, category);
@@ -203,11 +217,11 @@ public class JdbcMarketRepository implements AutoCloseable {
         final String sql = """
             INSERT INTO offers(product_id,seller,price,quantity) VALUES (?,?,?,?)
             ON CONFLICT (product_id,seller) DO UPDATE
-              SET price=EXCLUDED.price,
-                  quantity=offers.quantity + EXCLUDED.quantity
+            SET price=EXCLUDED.price,
+            quantity=offers.quantity + EXCLUDED.quantity
             """;
         try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+            PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setObject(1, normalizeId(productId));
             ps.setString(2, seller);
             ps.setDouble(3, price);
@@ -285,10 +299,10 @@ public class JdbcMarketRepository implements AutoCloseable {
         SELECT login, role
         FROM users
         WHERE lower(login) = lower(?) 
-          AND password_hash = crypt(?, password_hash)
+        AND password_hash = crypt(?, password_hash)
         """;
     try (Connection c = dataSource.getConnection();
-         PreparedStatement ps = c.prepareStatement(sql)) {
+        PreparedStatement ps = c.prepareStatement(sql)) {
         ps.setString(1, login);
         ps.setString(2, password);
         try (ResultSet rs = ps.executeQuery()) {
@@ -299,6 +313,6 @@ public class JdbcMarketRepository implements AutoCloseable {
         throw new RuntimeException("authenticate failed", e);
     }
 }
-    @Override public void close() { /* no-op */ }
+    @Override public void close() { /* no-op */ } //we don't need it
 }
 

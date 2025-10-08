@@ -15,6 +15,5 @@ public class AuthorizedUsers {
         this.password = null;
         this.role = role;
     }
-
-    }
+}
 

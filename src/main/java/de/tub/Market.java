@@ -5,6 +5,7 @@ import lombok.extern.java.Log;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.math.BigDecimal;
 
 @Log
 public class Market {
@@ -93,7 +94,7 @@ public class Market {
             ProductOffer offer = repo.getOffer(productName, seller);
             if (offer == null || offer.getQuantity() < qty) return false;
 
-            double executionPrice = offer.getPrice();
+            BigDecimal executionPrice = offer.getPrice();
             int totalBefore = repo.getTotalAvailableForProduct(productName);
             int availableAfter = totalBefore - qty;
             double newListedPrice = PriceCalculator.calculateNewPrice(executionPrice, qty, availableAfter);
